@@ -1,8 +1,3 @@
-from fastapi import FastAPI
+"""入口：uv run uvicorn main:app 启动本地推理网关。"""
 
-app = FastAPI()
-
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+from gateway.app import app  # noqa: F401

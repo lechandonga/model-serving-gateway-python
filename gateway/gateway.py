@@ -168,7 +168,11 @@ class Gateway:
                     self.metrics.inc("breaker.failures")
                 raise
             breaker.record_success(probe=probe)
-            self.metrics.inc("requests.success")
+            if probe:
+                # 恢复探测成功不计入正常成功流量
+                self.metrics.inc("breaker.probe_success")
+            else:
+                self.metrics.inc("requests.success")
             return response
         finally:
             self.registry.release(model, version)

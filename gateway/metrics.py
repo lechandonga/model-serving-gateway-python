@@ -1,4 +1,4 @@
-"""可观测性：线程安全计数器与版本状态快照。"""
+"""可观测性：线程安全计数器，并发更新不丢失不重复。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,9 @@ class Metrics:
         self._counters: dict[str, int] = defaultdict(int)
 
     def inc(self, name: str, value: int = 1) -> None:
-        raise NotImplementedError
+        with self._lock:
+            self._counters[name] += value
 
     def snapshot(self) -> dict[str, int]:
-        raise NotImplementedError
+        with self._lock:
+            return dict(self._counters)

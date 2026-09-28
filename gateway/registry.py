@@ -72,6 +72,27 @@ class VersionRegistry:
 
     # ---- 路由与在途计数 ----
 
+    def require_ready(self, model: str, version: str) -> None:
+        """校验某版本存在且 READY，否则抛出与 resolve 一致的可区分错误。"""
+        with self._lock:
+            versions = self._versions.get(model)
+            if versions is None:
+                raise GatewayError(ErrorCode.MODEL_NOT_FOUND, f"unknown model: {model}")
+            state = versions.get(version)
+            if state is None:
+                raise GatewayError(
+                    ErrorCode.VERSION_NOT_FOUND, f"unknown version: {model}/{version}"
+                )
+            if state == VersionState.RETIRED:
+                raise GatewayError(
+                    ErrorCode.VERSION_RETIRED, f"version retired: {model}/{version}"
+                )
+            if state != VersionState.READY:
+                raise GatewayError(
+                    ErrorCode.VERSION_NOT_READY,
+                    f"version {model}/{version} is {state.value}, not serving",
+                )
+
     def resolve(self, model: str, version: str | None) -> tuple[str, str]:
         """解析 (model, version)；version 为 None 时按确定规则落到稳定版本。"""
         with self._lock:

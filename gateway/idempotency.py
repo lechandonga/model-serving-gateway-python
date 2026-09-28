@@ -1,4 +1,4 @@
-"""幂等存储：按 (model, version) 隔离，容量有界，LRU 淘汰。"""
+"""幂等存储：按 (model, version, tenant) 隔离，容量有界，LRU 淘汰。"""
 
 from __future__ import annotations
 
@@ -7,11 +7,14 @@ from collections import OrderedDict
 
 from .types import InferResponse
 
+Key = tuple[str, str, str, str]
+
 
 class IdempotencyStore:
     """相同幂等标识只产生一次推理效果并返回一致结果。
 
-    - 记录按 (model, version, key) 隔离：版本切换后不会命中旧版本结果。
+    - 记录按 (model, version, tenant, key) 隔离：版本切换后不会命中旧版本结果；
+      多租户共用网关时，不同租户即便使用相同 key 也各算各的，绝不串结果。
     - 容量有界，超出时按 LRU 淘汰，内存占用有上界。
     - 版本下线时通过 evict_version 清除该版本全部记录。
     """
@@ -21,19 +24,21 @@ class IdempotencyStore:
             raise ValueError("capacity must be positive")
         self._capacity = capacity
         self._lock = threading.Lock()
-        self._records: OrderedDict[tuple[str, str, str], InferResponse] = OrderedDict()
+        self._records: OrderedDict[Key, InferResponse] = OrderedDict()
 
-    def get(self, model: str, version: str, key: str) -> InferResponse | None:
+    def get(self, model: str, version: str, tenant: str, key: str) -> InferResponse | None:
         with self._lock:
-            k = (model, version, key)
+            k = (model, version, tenant, key)
             resp = self._records.get(k)
             if resp is not None:
                 self._records.move_to_end(k)
             return resp
 
-    def put(self, model: str, version: str, key: str, response: InferResponse) -> None:
+    def put(
+        self, model: str, version: str, tenant: str, key: str, response: InferResponse
+    ) -> None:
         with self._lock:
-            k = (model, version, key)
+            k = (model, version, tenant, key)
             self._records[k] = response
             self._records.move_to_end(k)
             while len(self._records) > self._capacity:

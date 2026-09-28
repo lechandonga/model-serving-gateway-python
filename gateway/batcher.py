@@ -161,8 +161,12 @@ class DynamicBatcher:
             return
         for item, result in zip(batch, results):
             if isinstance(result, Exception):
-                # 批内单条失败：仅该条失败
-                item.error = GatewayError(ErrorCode.BACKEND_FAILURE, str(result))
+                # 批内单条失败：仅该条失败。这是该输入自身的问题（如含 NaN），
+                # 属于客户端非法输入而非后端整体故障，backend_fault=False：
+                # 错误码保持 BACKEND_FAILURE 可区分于普通校验，但不计熔断/回退。
+                item.error = GatewayError(
+                    ErrorCode.BACKEND_FAILURE, str(result), backend_fault=False
+                )
             else:
                 item.response = InferResponse(
                     request_id=item.request.request_id,

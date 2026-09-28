@@ -96,6 +96,21 @@ class VersionRegistry:
                 )
             return model, version
 
+    def stable_version(self, model: str) -> str | None:
+        """返回当前稳定指针（仅当其仍为 READY），否则 None。"""
+        with self._lock:
+            if model not in self._versions:
+                return None
+            stable = self._stable.get(model)
+            if stable is not None and self._versions[model].get(stable) == VersionState.READY:
+                return stable
+            return None
+
+    def version_state(self, model: str, version: str) -> VersionState | None:
+        """只读查询版本状态；模型或版本不存在返回 None。"""
+        with self._lock:
+            return self._versions.get(model, {}).get(version)
+
     def _fallback_locked(self, model: str) -> str:
         """稳定版本回退：优先稳定指针，否则取字典序最大的 READY 版本（确定性）。"""
         versions = self._versions[model]
